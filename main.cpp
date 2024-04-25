@@ -2,6 +2,7 @@
 #include"Vector3.h"
 #include"Matrix4x4.h"
 #include<cmath>
+#include"assert.h"
 
 
 const char kWindowTitle[] = "LD2B_04_コマツザキ_カガリ_タイトル";
@@ -34,7 +35,15 @@ Matrix4x4 MakeRotateZMatrix(Vector3 rotate);
 // XYZ合成
 Matrix4x4 Multiply(const Matrix4x4& rotateX, const Matrix4x4& rotateYZ);
 // アフィン変換
-Matrix4x4 MakeAffineMatrix(const Matrix4x4& S, const Matrix4x4& R, const Matrix4x4& T);
+Matrix4x4 MakeAffineMatrix(const Vector3& S, const Vector3& R, const Vector3& T);
+// 逆行列
+Matrix4x4 Inverse(Matrix4x4 cameraMatrix);
+// 透視投影行列
+Matrix4x4 MakePerspectiveFovMatrix(float fovY, float aspectRatio, float nearClip, float farClip);
+// ビューポート行列
+Matrix4x4 MakeViewportMatrix(float left, float top, float width, float height, float minDepth, float maxDepth);
+// 座標変換
+Vector3 Transform(const Vector3& point, const Matrix4x4& transformMatrix);
 
 
 
@@ -69,14 +78,14 @@ Matrix4x4 MakeTranslateMatrix(const Vector3& translate)
 }
 
 // X軸回転行列
-Matrix4x4 MakeRotateXMatrix(const Vector3& rotate)
+Matrix4x4 MakeRotateXMatrix(float rotate)
 {
 	Matrix4x4 result{};
 
-	result.m[1][1] = std::cos(rotate.x);
-	result.m[1][2] = std::sin(rotate.x);
-	result.m[2][1] = -std::sin(rotate.x);
-	result.m[2][2] = std::cos(rotate.x);
+	result.m[1][1] = std::cos(rotate);
+	result.m[1][2] = std::sin(rotate);
+	result.m[2][1] = -std::sin(rotate);
+	result.m[2][2] = std::cos(rotate);
 	result.m[0][0] = 1;
 	result.m[3][3] = 1;
 
@@ -84,29 +93,29 @@ Matrix4x4 MakeRotateXMatrix(const Vector3& rotate)
 }
 
 // Y軸回転行列
-Matrix4x4 MakeRotateYMatrix(Vector3 rotate)
+Matrix4x4 MakeRotateYMatrix(float rotate)
 {
 	Matrix4x4 result{};
 
-	result.m[0][0] = std::cos(rotate.y);
-	result.m[0][2] = -std::sin(rotate.y);
+	result.m[0][0] = std::cos(rotate);
+	result.m[0][2] = -std::sin(rotate);
 	result.m[1][1] = 1;
-	result.m[2][0] = std::sin(rotate.y);
-	result.m[2][2] = std::cos(rotate.y);
+	result.m[2][0] = std::sin(rotate);
+	result.m[2][2] = std::cos(rotate);
 	result.m[3][3] = 1;
 
 	return result;
 }
 
 // Z軸回転行列
-Matrix4x4 MakeRotateZMatrix(Vector3 rotate)
+Matrix4x4 MakeRotateZMatrix(float rotate)
 {
 	Matrix4x4 result{};
 
-	result.m[0][0] = std::cos(rotate.z);
-	result.m[0][1] = std::sin(rotate.z);
-	result.m[1][0] = -std::sin(rotate.z);
-	result.m[1][1] = std::cos(rotate.z);
+	result.m[0][0] = std::cos(rotate);
+	result.m[0][1] = std::sin(rotate);
+	result.m[1][0] = -std::sin(rotate);
+	result.m[1][1] = std::cos(rotate);
 	result.m[2][2] = 1;
 	result.m[3][3] = 1;
 
@@ -132,44 +141,186 @@ Matrix4x4 Multiply(const Matrix4x4& rotateX, const Matrix4x4& rotateYZ)
 	return result;
 }
 
+
 // アフィン変換
-Matrix4x4 MakeAffineMatrix(const Matrix4x4& S, const Matrix4x4& R, const Matrix4x4& T)
+Matrix4x4 MakeAffineMatrix(const Vector3& S, const Vector3& R, const Vector3& T)
 {
-	Matrix4x4 SR{};
 	Matrix4x4 result{};
 
-	for (int i = 0; i < 4; i++)
-	{
-		for (int j = 0; j < 4; j++)
-		{
-			for (int k = 0; k < 4; k++)
-			{
-				SR.m[i][j] += S.m[i][k] * R.m[k][j];
-			}
-		}
-	}
-	for (int i = 0; i < 4; i++)
-	{
-		for (int j = 0; j < 4; j++)
-		{
-			for (int k = 0; k < 4; k++)
-			{
-				result.m[i][j] += SR.m[i][k] * T.m[k][j];
-			}
-		}
-	}
+	Matrix4x4 rotateXMatrix = MakeRotateXMatrix(R.x);
+	Matrix4x4 rotateYMatrix = MakeRotateYMatrix(R.y);
+	Matrix4x4 rotateZMatrix = MakeRotateZMatrix(R.z);
+	Matrix4x4 rotateXYZMatrix = Multiply(rotateXMatrix, Multiply(rotateYMatrix, rotateZMatrix));
+
+
+	result.m[0][0] = S.x * rotateXYZMatrix.m[0][0];
+	result.m[0][1] = S.x * rotateXYZMatrix.m[0][1];
+	result.m[0][2] = S.x * rotateXYZMatrix.m[0][2];
+	result.m[1][0] = S.y * rotateXYZMatrix.m[1][0];
+	result.m[1][1] = S.y * rotateXYZMatrix.m[1][1];
+	result.m[1][2] = S.y * rotateXYZMatrix.m[1][2];
+	result.m[2][0] = S.z * rotateXYZMatrix.m[2][0];
+	result.m[2][1] = S.z * rotateXYZMatrix.m[2][1];
+	result.m[2][2] = S.z * rotateXYZMatrix.m[2][2];
+	result.m[3][0] = T.x;
+	result.m[3][1] = T.y;
+	result.m[3][2] = T.z;
+	result.m[3][3] = 1;
 
 	return result;
 }
 
 
+// 逆行列
+Matrix4x4 Inverse(Matrix4x4 cameraMatrix)
+{
+	Matrix4x4 result{};
+
+	float abs;//絶対値はint型にする
+
+	// |A|
+	abs = (cameraMatrix.m[0][0] * cameraMatrix.m[1][1] * cameraMatrix.m[2][2] * cameraMatrix.m[3][3]) + (cameraMatrix.m[0][0] * cameraMatrix.m[1][2] * cameraMatrix.m[2][3] * cameraMatrix.m[3][1]) + (cameraMatrix.m[0][0] * cameraMatrix.m[1][3] * cameraMatrix.m[2][1] * cameraMatrix.m[3][2])
+		- (cameraMatrix.m[0][0] * cameraMatrix.m[1][3] * cameraMatrix.m[2][2] * cameraMatrix.m[3][1]) - (cameraMatrix.m[0][0] * cameraMatrix.m[1][2] * cameraMatrix.m[2][1] * cameraMatrix.m[3][3]) - (cameraMatrix.m[0][0] * cameraMatrix.m[1][1] * cameraMatrix.m[2][3] * cameraMatrix.m[3][2])
+		- (cameraMatrix.m[0][1] * cameraMatrix.m[1][0] * cameraMatrix.m[2][2] * cameraMatrix.m[3][3]) - (cameraMatrix.m[0][2] * cameraMatrix.m[1][0] * cameraMatrix.m[2][3] * cameraMatrix.m[3][1]) - (cameraMatrix.m[0][3] * cameraMatrix.m[1][0] * cameraMatrix.m[2][1] * cameraMatrix.m[3][2])
+		+ (cameraMatrix.m[0][3] * cameraMatrix.m[1][0] * cameraMatrix.m[2][2] * cameraMatrix.m[3][1]) + (cameraMatrix.m[0][2] * cameraMatrix.m[1][0] * cameraMatrix.m[2][1] * cameraMatrix.m[3][3]) + (cameraMatrix.m[0][1] * cameraMatrix.m[1][0] * cameraMatrix.m[2][3] * cameraMatrix.m[3][2])
+		+ (cameraMatrix.m[0][1] * cameraMatrix.m[1][2] * cameraMatrix.m[2][0] * cameraMatrix.m[3][3]) + (cameraMatrix.m[0][2] * cameraMatrix.m[1][3] * cameraMatrix.m[2][0] * cameraMatrix.m[3][1]) + (cameraMatrix.m[0][3] * cameraMatrix.m[1][1] * cameraMatrix.m[2][0] * cameraMatrix.m[3][2])
+		- (cameraMatrix.m[0][3] * cameraMatrix.m[1][2] * cameraMatrix.m[2][0] * cameraMatrix.m[3][1]) - (cameraMatrix.m[0][2] * cameraMatrix.m[1][1] * cameraMatrix.m[2][0] * cameraMatrix.m[3][3]) - (cameraMatrix.m[0][1] * cameraMatrix.m[1][3] * cameraMatrix.m[2][0] * cameraMatrix.m[3][2])
+		- (cameraMatrix.m[0][1] * cameraMatrix.m[1][2] * cameraMatrix.m[2][3] * cameraMatrix.m[3][0]) - (cameraMatrix.m[0][2] * cameraMatrix.m[1][3] * cameraMatrix.m[2][1] * cameraMatrix.m[3][0]) - (cameraMatrix.m[0][3] * cameraMatrix.m[1][1] * cameraMatrix.m[2][2] * cameraMatrix.m[3][0])
+		+ (cameraMatrix.m[0][3] * cameraMatrix.m[1][2] * cameraMatrix.m[2][1] * cameraMatrix.m[3][0]) + (cameraMatrix.m[0][2] * cameraMatrix.m[1][1] * cameraMatrix.m[2][3] * cameraMatrix.m[3][0]) + (cameraMatrix.m[0][1] * cameraMatrix.m[1][3] * cameraMatrix.m[2][2] * cameraMatrix.m[3][0]
+			);
+
+	// 1/A
+	result.m[0][0] = 1.0f / abs * (
+		(cameraMatrix.m[1][1] * cameraMatrix.m[2][2] * cameraMatrix.m[3][3]) + (cameraMatrix.m[1][2] * cameraMatrix.m[2][3] * cameraMatrix.m[3][1]) + (cameraMatrix.m[1][3] * cameraMatrix.m[2][1] * cameraMatrix.m[3][2])
+		- (cameraMatrix.m[1][3] * cameraMatrix.m[2][2] * cameraMatrix.m[3][1]) - (cameraMatrix.m[1][2] * cameraMatrix.m[2][1] * cameraMatrix.m[3][3]) - (cameraMatrix.m[1][1] * cameraMatrix.m[2][3] * cameraMatrix.m[3][2])
+		);
+	result.m[0][1] = 1.0f / abs * (
+		-(cameraMatrix.m[0][1] * cameraMatrix.m[2][2] * cameraMatrix.m[3][3]) - (cameraMatrix.m[0][2] * cameraMatrix.m[2][3] * cameraMatrix.m[3][1]) - (cameraMatrix.m[0][3] * cameraMatrix.m[2][1] * cameraMatrix.m[3][2])
+		+ cameraMatrix.m[0][3] * cameraMatrix.m[2][2] * cameraMatrix.m[3][1] + cameraMatrix.m[0][2] * cameraMatrix.m[2][1] * cameraMatrix.m[3][3] + cameraMatrix.m[0][1] * cameraMatrix.m[2][3] * cameraMatrix.m[3][2]
+		);
+	result.m[0][2] = 1.0f / abs * (
+		(cameraMatrix.m[0][1] * cameraMatrix.m[1][2] * cameraMatrix.m[3][3]) + (cameraMatrix.m[0][2] * cameraMatrix.m[1][3] * cameraMatrix.m[3][1]) + (cameraMatrix.m[0][3] * cameraMatrix.m[1][1] * cameraMatrix.m[3][2])
+		- (cameraMatrix.m[0][3] * cameraMatrix.m[1][2] * cameraMatrix.m[3][1]) - (cameraMatrix.m[0][2] * cameraMatrix.m[1][1] * cameraMatrix.m[3][3]) - (cameraMatrix.m[0][1] * cameraMatrix.m[1][3] * cameraMatrix.m[3][2])
+		);
+	result.m[0][3] = 1.0f / abs * (
+		-(cameraMatrix.m[0][1] * cameraMatrix.m[1][2] * cameraMatrix.m[2][3]) - (cameraMatrix.m[0][2] * cameraMatrix.m[1][3] * cameraMatrix.m[2][1]) - (cameraMatrix.m[0][3] * cameraMatrix.m[1][1] * cameraMatrix.m[2][2])
+		+ (cameraMatrix.m[0][3] * cameraMatrix.m[1][2] * cameraMatrix.m[2][1]) + (cameraMatrix.m[0][2] * cameraMatrix.m[1][1] * cameraMatrix.m[2][3]) + (cameraMatrix.m[0][1] * cameraMatrix.m[1][3] * cameraMatrix.m[2][2])
+		);
+
+	result.m[1][0] = 1.0f / abs * (
+		-(cameraMatrix.m[1][0] * cameraMatrix.m[2][2] * cameraMatrix.m[3][3]) - (cameraMatrix.m[1][2] * cameraMatrix.m[2][3] * cameraMatrix.m[3][0]) - (cameraMatrix.m[1][3] * cameraMatrix.m[2][0] * cameraMatrix.m[3][2])
+		+ (cameraMatrix.m[1][3] * cameraMatrix.m[2][2] * cameraMatrix.m[3][0]) + (cameraMatrix.m[1][2] * cameraMatrix.m[2][0] * cameraMatrix.m[3][3]) + (cameraMatrix.m[1][0] * cameraMatrix.m[2][3] * cameraMatrix.m[3][2])
+		);
+	result.m[1][1] = 1.0f / abs * (
+		(cameraMatrix.m[0][0] * cameraMatrix.m[2][2] * cameraMatrix.m[3][3]) + (cameraMatrix.m[0][2] * cameraMatrix.m[2][3] * cameraMatrix.m[3][0]) + (cameraMatrix.m[0][3] * cameraMatrix.m[2][0] * cameraMatrix.m[3][2])
+		- (cameraMatrix.m[0][3] * cameraMatrix.m[2][2] * cameraMatrix.m[3][0]) - (cameraMatrix.m[0][2] * cameraMatrix.m[2][0] * cameraMatrix.m[3][3]) - (cameraMatrix.m[0][0] * cameraMatrix.m[2][3] * cameraMatrix.m[3][2])
+		);
+	result.m[1][2] = 1.0f / abs * (
+		-(cameraMatrix.m[0][0] * cameraMatrix.m[1][2] * cameraMatrix.m[3][3]) - (cameraMatrix.m[0][2] * cameraMatrix.m[1][3] * cameraMatrix.m[3][0]) - (cameraMatrix.m[0][3] * cameraMatrix.m[1][0] * cameraMatrix.m[3][2])
+		+ (cameraMatrix.m[0][3] * cameraMatrix.m[1][2] * cameraMatrix.m[3][0]) + (cameraMatrix.m[0][2] * cameraMatrix.m[1][0] * cameraMatrix.m[3][3]) + (cameraMatrix.m[0][0] * cameraMatrix.m[1][3] * cameraMatrix.m[3][2])
+		);
+	result.m[1][3] = 1.0f / abs * (
+		(cameraMatrix.m[0][0] * cameraMatrix.m[1][2] * cameraMatrix.m[2][3]) + (cameraMatrix.m[0][2] * cameraMatrix.m[1][3] * cameraMatrix.m[2][0]) + (cameraMatrix.m[0][3] * cameraMatrix.m[1][0] * cameraMatrix.m[2][2])
+		- (cameraMatrix.m[0][3] * cameraMatrix.m[1][2] * cameraMatrix.m[2][0]) - (cameraMatrix.m[0][2] * cameraMatrix.m[1][0] * cameraMatrix.m[2][3]) - (cameraMatrix.m[0][0] * cameraMatrix.m[1][3] * cameraMatrix.m[2][2])
+		);
+
+	result.m[2][0] = 1.0f / abs * (
+		(cameraMatrix.m[1][0] * cameraMatrix.m[2][1] * cameraMatrix.m[3][3]) + (cameraMatrix.m[1][1] * cameraMatrix.m[2][3] * cameraMatrix.m[3][0]) + (cameraMatrix.m[1][3] * cameraMatrix.m[2][0] * cameraMatrix.m[3][1])
+		- (cameraMatrix.m[1][3] * cameraMatrix.m[2][1] * cameraMatrix.m[3][0]) - (cameraMatrix.m[1][1] * cameraMatrix.m[2][0] * cameraMatrix.m[3][3]) - (cameraMatrix.m[1][0] * cameraMatrix.m[2][3] * cameraMatrix.m[3][1])
+		);
+	result.m[2][1] = 1.0f / abs * (
+		-(cameraMatrix.m[0][0] * cameraMatrix.m[2][1] * cameraMatrix.m[3][3]) - (cameraMatrix.m[0][1] * cameraMatrix.m[2][3] * cameraMatrix.m[3][0]) - (cameraMatrix.m[0][3] * cameraMatrix.m[2][0] * cameraMatrix.m[3][1])
+		+ (cameraMatrix.m[0][3] * cameraMatrix.m[2][1] * cameraMatrix.m[3][0]) + (cameraMatrix.m[0][1] * cameraMatrix.m[2][0] * cameraMatrix.m[3][3]) + (cameraMatrix.m[0][0] * cameraMatrix.m[2][3] * cameraMatrix.m[3][1])
+		);
+	result.m[2][2] = 1.0f / abs * (
+		(cameraMatrix.m[0][0] * cameraMatrix.m[1][1] * cameraMatrix.m[3][3]) + (cameraMatrix.m[0][1] * cameraMatrix.m[1][3] * cameraMatrix.m[3][0]) + (cameraMatrix.m[0][3] * cameraMatrix.m[1][0] * cameraMatrix.m[3][1])
+		- (cameraMatrix.m[0][3] * cameraMatrix.m[1][1] * cameraMatrix.m[3][0]) - (cameraMatrix.m[0][1] * cameraMatrix.m[1][0] * cameraMatrix.m[3][3]) - (cameraMatrix.m[0][0] * cameraMatrix.m[1][3] * cameraMatrix.m[3][1])
+		);
+	result.m[2][3] = 1.0f / abs * (
+		-(cameraMatrix.m[0][0] * cameraMatrix.m[1][1] * cameraMatrix.m[2][3]) - (cameraMatrix.m[0][1] * cameraMatrix.m[1][3] * cameraMatrix.m[2][0]) - (cameraMatrix.m[0][3] * cameraMatrix.m[1][0] * cameraMatrix.m[2][1])
+		+ (cameraMatrix.m[0][3] * cameraMatrix.m[1][1] * cameraMatrix.m[2][0]) + (cameraMatrix.m[0][1] * cameraMatrix.m[1][0] * cameraMatrix.m[2][3]) + (cameraMatrix.m[0][0] * cameraMatrix.m[1][3] * cameraMatrix.m[2][1])
+		);
+
+	result.m[3][0] = 1.0f / abs * (
+		-(cameraMatrix.m[1][0] * cameraMatrix.m[2][1] * cameraMatrix.m[3][2]) - (cameraMatrix.m[1][1] * cameraMatrix.m[2][2] * cameraMatrix.m[3][0]) - (cameraMatrix.m[1][2] * cameraMatrix.m[2][0] * cameraMatrix.m[3][1])
+		+ (cameraMatrix.m[1][2] * cameraMatrix.m[2][1] * cameraMatrix.m[3][0]) + (cameraMatrix.m[1][1] * cameraMatrix.m[2][0] * cameraMatrix.m[3][2]) + (cameraMatrix.m[1][0] * cameraMatrix.m[2][2] * cameraMatrix.m[3][1])
+		);
+	result.m[3][1] = 1.0f / abs * (
+		(cameraMatrix.m[0][0] * cameraMatrix.m[2][1] * cameraMatrix.m[3][2]) + (cameraMatrix.m[0][1] * cameraMatrix.m[2][2] * cameraMatrix.m[3][0]) + (cameraMatrix.m[0][2] * cameraMatrix.m[2][0] * cameraMatrix.m[3][1])
+		- (cameraMatrix.m[0][2] * cameraMatrix.m[2][1] * cameraMatrix.m[3][0]) - (cameraMatrix.m[0][1] * cameraMatrix.m[2][0] * cameraMatrix.m[3][2]) - (cameraMatrix.m[0][0] * cameraMatrix.m[2][2] * cameraMatrix.m[3][1])
+		);
+	result.m[3][2] = 1.0f / abs * (
+		-(cameraMatrix.m[0][0] * cameraMatrix.m[1][1] * cameraMatrix.m[3][2]) - (cameraMatrix.m[0][1] * cameraMatrix.m[1][2] * cameraMatrix.m[3][0]) - (cameraMatrix.m[0][2] * cameraMatrix.m[1][0] * cameraMatrix.m[3][1])
+		+ (cameraMatrix.m[0][2] * cameraMatrix.m[1][1] * cameraMatrix.m[3][0]) + (cameraMatrix.m[0][1] * cameraMatrix.m[1][0] * cameraMatrix.m[3][2]) + (cameraMatrix.m[0][0] * cameraMatrix.m[1][2] * cameraMatrix.m[3][1])
+		);
+	result.m[3][3] = 1.0f / abs * (
+		(cameraMatrix.m[0][0] * cameraMatrix.m[1][1] * cameraMatrix.m[2][2]) + (cameraMatrix.m[0][1] * cameraMatrix.m[1][2] * cameraMatrix.m[2][0]) + (cameraMatrix.m[0][2] * cameraMatrix.m[1][0] * cameraMatrix.m[2][1])
+		- (cameraMatrix.m[0][2] * cameraMatrix.m[1][1] * cameraMatrix.m[2][0]) - (cameraMatrix.m[0][1] * cameraMatrix.m[1][0] * cameraMatrix.m[2][2]) - (cameraMatrix.m[0][0] * cameraMatrix.m[1][2] * cameraMatrix.m[2][1])
+		);
+
+	
+	return result;
+}
+
+
+// 透視投影行列
+Matrix4x4 MakePerspectiveFovMatrix(float fovY, float aspectRatio, float nearClip, float farClip)
+{
+	Matrix4x4 result{};
+
+	result.m[0][0] = (1 / aspectRatio) * 1 / std::tan(fovY / 2);
+	result.m[1][1] = 1 / std::tan(fovY / 2);
+	result.m[2][2] = farClip / (farClip - nearClip);
+	result.m[2][3] = 1;
+	result.m[3][2] = (-nearClip * farClip) / (farClip - nearClip);
+
+	return result;
+}
+
+
+// ビューポート変換行列
+Matrix4x4 MakeViewportMatrix(float left, float top, float width, float height, float minDepth, float maxDepth)
+{
+	Matrix4x4 result{};
+
+	result.m[0][0] = width / 2;
+	result.m[1][1] = -height / 2;
+	result.m[2][2] = maxDepth - minDepth;
+	result.m[3][0] = left + (width / 2);
+	result.m[3][1] = top + (height / 2);
+	result.m[3][2] = minDepth;
+	result.m[3][3] = 1;
+
+	return result;
+}
+
+
+// 座標変換
+Vector3 Transform(const Vector3& point, const Matrix4x4& transformMatrix)
+{
+	Vector3 result{};
+
+	result.x = point.x * transformMatrix.m[0][0] + point.y * transformMatrix.m[1][0] + point.z * transformMatrix.m[2][0] + 1.0f * transformMatrix.m[3][0];
+	result.y = point.x * transformMatrix.m[0][1] + point.y * transformMatrix.m[1][1] + point.z * transformMatrix.m[2][1] + 1.0f * transformMatrix.m[3][1];
+	result.z = point.x * transformMatrix.m[0][2] + point.y * transformMatrix.m[1][2] + point.z * transformMatrix.m[2][2] + 1.0f * transformMatrix.m[3][2];
+	float w = point.x * transformMatrix.m[0][3] + point.y * transformMatrix.m[1][3] + point.z * transformMatrix.m[2][3] + 1.0f * transformMatrix.m[3][3];
+	//assert(w != 0.0f);
+	result.x /= w;
+	result.y /= w;
+	result.z /= w;
+
+	return result;
+}
 
 
 // Windowsアプリでのエントリーポイント(main関数)
 int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 
+	float kWindowWidth = 1280.0f;
+	float kWindowHeight = 720.0f;
+
 	// ライブラリの初期化
-	Novice::Initialize(kWindowTitle, 1280, 720);
+	Novice::Initialize(kWindowTitle, int(kWindowWidth), int(kWindowHeight));
 
 	// キー入力結果を受け取る箱
 	char keys[256] = {0};
@@ -178,9 +329,29 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 
 	Vector3 v1{ 1.2f,-3.9f,2.5f };
 	Vector3 v2{ 2.8f,0.4f,-1.3f };
+	Vector3 cross = Cross(v1, v2);
 
 	Vector3 rotate{};
 	Vector3 translate{};
+
+	Vector3 cameraPosition{ 200.0f,200.0f,0.0f };
+
+
+	////////わからん/////////////
+	Vector3 kLocalVertices[3]{0.0f,0.0f,0.0f};
+	
+	Matrix4x4 worldMatrix = MakeAffineMatrix({ 1.0f,1.0f,1.0f }, rotate, translate);
+	Matrix4x4 cameraMatrix = MakeAffineMatrix({ 1.0f,1.0f,1.0f }, { 0.0f,0.0f,0.0f }, cameraPosition);
+	Matrix4x4 viewMatrix = Inverse(cameraMatrix);
+	Matrix4x4 projectionMatrix = MakePerspectiveFovMatrix(0.45f, float(kWindowWidth) / float(kWindowHeight), 0.1f, 100.0f);
+	Matrix4x4 worldViewProjectionMatrix = Multiply(worldMatrix, Multiply(viewMatrix, projectionMatrix));
+	Matrix4x4 viewportMatrix = MakeViewportMatrix(0, 0, float(kWindowWidth), float(kWindowHeight),0.0f, 1.0f);
+	Vector3 screenVertices[3];
+	for (uint32_t i = 0; i < 3; ++i)
+	{
+		Vector3 ndcVertex = Transform(kLocalVertices[i], worldViewProjectionMatrix);
+		screenVertices[i] = Transform(ndcVertex, viewportMatrix);
+	}
 
 
 	// ウィンドウの×ボタンが押されるまでループ
@@ -196,15 +367,27 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 		/// ↓更新処理ここから
 		///
 
-		Vector3 cross = Cross(v1, v2);
-		Matrix4x4 translateMatrix = MakeTranslateMatrix(translate);
-		Matrix4x4 rotateXMatrix = MakeRotateXMatrix(rotate);
-		Matrix4x4 rotateYMatrix = MakeRotateYMatrix(rotate);
-		Matrix4x4 rotateZMatrix = MakeRotateZMatrix(rotate);
-		Matrix4x4 rotateXYZMatrix = Multiply(rotateXMatrix, Multiply(rotateYMatrix, rotateZMatrix));
-		Matrix4x4 worldMatrix = MakeAffineMatrix({ 1.0f,1.0f,1.0f }, rotateXYZMatrix, translateMatrix);
-		Matrix4x4 cameraMatrix = MakeAffineMatrix({ 1.0f,1.0f,1.0f }, { 0.0f,0.0f,0.0f }, cameraPosition);
+		// 回転
+		rotate.y += 0.02f;
 
+		// 移動
+		if (keys[DIK_W] && preKeys[DIK_W] == 0)
+		{
+			translate.y += 5.0f;
+		}
+		if (keys[DIK_S] && preKeys[DIK_S] == 0)
+		{
+			translate.y -= 5.0f;
+		}
+		if (keys[DIK_A] && preKeys[DIK_A] == 0)
+		{
+			translate.x -= 5.0f;
+		}
+		if (keys[DIK_D] && preKeys[DIK_D] == 0)
+		{
+			translate.x += 5.0f;
+		}
+		
 		///
 		/// ↑更新処理ここまで
 		///
@@ -214,6 +397,14 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 		///
 
 		VectorScreenPrintf(0, 0, cross, "Cross");
+		
+
+		Novice::DrawTriangle(
+			int(screenVertices[0].x), int(screenVertices[0].y),
+			int(screenVertices[1].x), int(screenVertices[1].y),
+			int(screenVertices[2].x), int(screenVertices[1].y),
+			RED, kFillModeSolid
+		);
 
 		///
 		/// ↑描画処理ここまで
