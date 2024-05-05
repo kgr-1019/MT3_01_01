@@ -379,13 +379,23 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 		Matrix4x4 cameraMatrix = MakeAffineMatrix({ 1.0f,1.0f,1.0f }, { 0.0f,0.0f,0.0f }, cameraPosition);
 		Matrix4x4 viewMatrix = Inverse(cameraMatrix);
 		Matrix4x4 projectionMatrix = MakePerspectiveFovMatrix(0.45f, 1280.0f / 720.0f, 0.1f, 100.0f);
+		// WVPMatrixを作る
 		Matrix4x4 worldViewProjectionMatrix = Multiply(worldMatrix, Multiply(viewMatrix, projectionMatrix));
+		// ViewportMatrixを作る
 		Matrix4x4 viewportMatrix = MakeViewportMatrix(0, 0, 1280.0f, 720, 0.0f, 1.0f);
+		// Screen空間へと頂点を変換する
 		Vector3 screenVertices[3];
 
 		for (uint32_t i = 0; i < 3; ++i)
 		{
+			// NDC(正規化デバイス座標系)まで変換
+			/*
+			Transformを使うと同次座標系->デカルト座標系の処理が行われ
+			結果的にZDivideが行われることになる
+			(遠いほど小さく見えるようにする)
+			*/
 			Vector3 ndcVertex = Transform(kLocalVertices[i], worldViewProjectionMatrix);
+			// Viewport変換を行ってScreen空間へ
 			screenVertices[i] = Transform(ndcVertex, viewportMatrix);
 		}
 		
@@ -399,6 +409,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 
 		VectorScreenPrintf(0, 0, cross, "Cross");
 		
+		// 裏向きの時は表示しない
 		if (screenVertices[1].x >= screenVertices[2].x)
 		{
 			Novice::DrawTriangle(
