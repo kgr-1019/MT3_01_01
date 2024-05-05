@@ -409,6 +409,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 
 		VectorScreenPrintf(0, 0, cross, "Cross");
 		
+		// 描画
 		// 裏向きの時は表示しない
 		if (screenVertices[1].x >= screenVertices[2].x)
 		{
